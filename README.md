@@ -9,13 +9,13 @@ Note: If you are experienced with Git and Github, feel free to skip to the requi
 If you are on Mac or Linux, open a new terminal, navigate to the folder where you want to have the repository, and clone the repository using:
 
 ```shell
-git clone <INSERT REPO NAME HERE>
+git clone https://github.com/marshallyale/go_outdoors_learning.git
 ```
 
 If you are on Windows, you should install Windows Subsystem for Linux from the Microsoft Store, open up a WSL terminal, navigate to the folder where you want the repository, and clone the repository using:
 
 ```shell
-git clone <INSERT REPO NAME HERE>
+git clone https://github.com/marshallyale/go_outdoors_learning.git
 ```
 
 ## Requirements
