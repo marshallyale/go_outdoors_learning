@@ -1,36 +1,50 @@
-"""This script is used for Go Outdoors to take an excel file, parse it, and then create plots showing the children's progress"""
-from typing import Any
+"""This script is used for Go Outdoors to take a csv file, parse it, and then create plots showing the children's progress"""
 import argparse
+import sys
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 import pandas as pd
+import regex as re
 
 
-def create_df_dict_from_excel(excel_file: str) -> Any:
-    """Create the dictionary of dataframes from an excel file. Ignores any sheets that are blank.
+def get_topic_df_from_csv(csv_file):
+    """Create the dictionary of dataframes from a csv file.
 
     Args:
-        excel_file (str): String pointing to either relative or absolute path of excel file
+        csv_file (str): String pointing to either relative or absolute path of excel file
 
     Returns:
         Any: Dictionary of dataframes which correspond to sheets in an excel file
     """
-    df_dict = pd.read_excel(excel_file, sheet_name=None)
-    keys_to_delete = (
-        []
-    )  # Can't delete empty dfs in loop or else we get a dictionary changed size error
-    for key, value in df_dict.items():
-        if value.empty:
-            keys_to_delete.append(key)
-        else:
-            df_dict[key] = df_dict[key].fillna(0)
-
-    for key in keys_to_delete:
-        del df_dict[key]
+    topics = []
+    df_dict = {}
+    topic_regex = re.compile(r"(?<=How much did you know about )(.*)(?= BEFORE)")
+    after_regex = re.compile(r"(?<=How much did you know about )(.*)(?= AFTER)")
+    interest_regex = re.compile(r"(?<=How much did you LIKE )(.*)")
+    df = pd.read_csv(csv_file)
+    for column in df.columns:
+        match = topic_regex.search(column)
+        if match:
+            topics.append(match.group(1))
+    for topic in topics:
+        filtered_columns = df.filter(regex=topic).columns
+        # Select the columns you want to keep
+        df_dict[topic] = df[filtered_columns]
+    # Verify that the needed columns are in the dataframe
+    for topic, topic_df in df_dict.items():
+        columns = "-".join(topic_df.columns)
+        after_match = after_regex.search(columns)
+        interest_match = interest_regex.search(columns)
+        if not after_match:
+            print(f"The topic {topic} is missing the AFTER question. Exiting.")
+            sys.exit(1)
+        if not interest_match:
+            print(f"The topic {topic} is missing the INTEREST question. Exiting.")
+            sys.exit(1)
     return df_dict
 
 
-def create_plottable_df(df):
+def create_plottable_df(df, topic):
     """Takes an initial dataframe and returns a knowledge dataframe and an
     interest dataframe which are ready to be plotted
 
@@ -41,70 +55,92 @@ def create_plottable_df(df):
         pandas_dataframe: Dataframe which corresponds to the student's interest in a particular subject
         pandas_dataframe: Dataframe which corresponds to the student's before and after knowledge of a subject
     """
-    topic = df.columns[0]  # Grabbing topic
-    df.columns = df.iloc[1]  # Setting column names
-
+    # Need to pull out the correct scale
+    scale_match = re.search(r"(?<=lesson\?\n)((.|\n)*)", df.columns[0])
+    if scale_match:
+        scale = {}
+        scale_group = scale_match.group(1)
+        scale_group = scale_group.split("\n")
+        for line in scale_group:
+            line = line.split(" = ")
+            scale[int(line[0])] = line[1]
+    else:
+        print("Couldn't extract scale from csv. Assuming 1-4")
+        scale = {1: "Nothing", 2: "A little", 3: "Some", 4: "A lot"}
+    # Need to now rename columns so they aren't so damn long
+    # df.columns = scale.values()  # Setting column names
+    column_rename_map = {}
+    for column in df.columns:
+        if "BEFORE" in column:
+            column_rename_map[column] = "before"
+        elif "AFTER" in column:
+            column_rename_map[column] = "after"
+        elif "LIKE" in column:
+            column_rename_map[column] = "like"
+        else:
+            print(f"Column not known. {column}")
+    df = df.rename(columns=column_rename_map)
     # Pulling out student votes for knowledge level from xlsx
-    knowledge_before = df.iloc[2:, 1:4].sum(axis=0)
-    knowledge_after = df.iloc[2:, 4:7].sum(axis=0)
-    interest = (df.iloc[2:, 7:10]).sum(axis=0)
+    knowledge_before = df["before"].value_counts()
+    knowledge_after = df["after"].value_counts()
+    interest = df["like"].value_counts()
     # Have to concatenate both series into a dataframe, reset the indexes, and then transpose
+
     df_knowledge = pd.concat(
         [knowledge_before, knowledge_after], axis=1, keys=["Before", "After"]
     )
-    df_knowledge = df_knowledge.T  # Transpose to get things in correct order
+    df_knowledge = df_knowledge.sort_index(ascending=True)
+    df_knowledge = df_knowledge.T
     knowledge_columns = list(
         df_knowledge.columns
     )  # Grab final column names (don't hardcode in case they change)
     df_knowledge[knowledge_columns] = df_knowledge[knowledge_columns].apply(
         lambda x: (x / x.sum()) * 100, axis=1
     )  # Convert everything to percentage
+    df_knowledge = df_knowledge.rename(columns=scale)
     df_knowledge.columns.name = topic
-
     df_int = pd.DataFrame(interest)
-    df_int = df_int.iloc[::-1]
     interest_column = ["Interest"]
     df_int.columns = interest_column
     df_int[interest_column] = df_int[interest_column].apply(
         lambda x: (x / x.sum()) * 100, axis=0
     )  # Convert everything to percentage
-    df_int.index.name = (
-        None  # Have to remove this or else it will display on the plots
-    )
+    df_int.index.name = None  # Have to remove this or else it will display on the plots
+    df_int = df_int.sort_index(ascending=True)
+    df_int = df_int.rename(index=scale)
     return df_knowledge, df_int
 
 
 def main():
     """Main function"""
-    excel_file = args.excel_file
-    df_dict = create_df_dict_from_excel(excel_file)
+    csv_file = args.csv_file
+    df_dict = get_topic_df_from_csv(csv_file)
     plot_dfs = []
     plot_interest = []
-    for df in df_dict.values():
-        plot_df, interest = create_plottable_df(df)
+    for topic, df in df_dict.items():
+        print(f"Generating plots for topic {topic}")
+        plot_df, interest = create_plottable_df(df, topic)
         plot_dfs.append(plot_df)
         plot_interest.append(interest)
 
     for i, plot_df in enumerate(plot_dfs):
         fig = plt.figure()
         topic = plot_df.columns.name
-        subplot_title_x_loc = 0.5  # Change this to change the location of the title (i.e. The topics)
-        subplot_title_y_loc = 1.05
-        fig.suptitle(
-            topic, x=subplot_title_x_loc, y=subplot_title_y_loc, fontsize=14
+        subplot_title_x_loc = (
+            0.5  # Change this to change the location of the title (i.e. The topics)
         )
+        subplot_title_y_loc = 1.05
+        fig.suptitle(topic, x=subplot_title_x_loc, y=subplot_title_y_loc, fontsize=14)
         axes = fig.subplots(nrows=1, ncols=2)
 
         ax1 = plot_df.plot(
             kind="bar",
             stacked=True,
             ax=axes[1],
-            color=["#2A788EFF", "#7AD151FF", "#FDE725FF"],  # "#440154FF",
+            color=["#2A788EFF", "#7AD151FF", "#FDE725FF", "#440154FF"],  # ,
             title="Knowledge Gains",
         )
-        ax1.legend(
-            loc="lower left", bbox_to_anchor=(1, 0), title="Knowledge Level"
-        )
+        ax1.legend(loc="lower left", bbox_to_anchor=(1, 0), title="Knowledge Level")
         ax1.yaxis.set_major_formatter(mtick.PercentFormatter())
 
         ax2 = plot_interest[i].plot(
@@ -128,8 +164,8 @@ if __name__ == "__main__":
         "-f",
         "--file",
         type=str,
-        dest="excel_file",
-        help="Excel file to create plots from",
+        dest="csv_file",
+        help="csv file to create plots from",
         required=True,
     )
     args = parser.parse_args()
