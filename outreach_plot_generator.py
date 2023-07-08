@@ -56,19 +56,23 @@ def create_plottable_df(df, topic):
         pandas_dataframe: Dataframe which corresponds to the student's before and after knowledge of a subject
     """
     # Need to pull out the correct scale
-    scale_match = re.search(r"(?<=lesson\?\n)((.|\n)*)", df.columns[0])
-    if scale_match:
-        scale = {}
-        scale_group = scale_match.group(1)
+    learn_scale_match = re.search(r"(?<=lesson\?\n)((.|\n)*)", df.columns[0])
+    if learn_scale_match:
+        learn_scale = {}
+        scale_group = learn_scale_match.group(1)
         scale_group = scale_group.split("\n")
         for line in scale_group:
             line = line.split(" = ")
-            scale[int(line[0])] = line[1]
+            learn_scale[int(line[0])] = line[1]
     else:
-        print("Couldn't extract scale from csv. Assuming 1-4")
-        scale = {1: "Nothing", 2: "A little", 3: "Some", 4: "A lot"}
+        print(
+            "Couldn't extract scale from csv. Assuming 1-4 for learning, 1-3 for interest"
+        )
+    learn_scale = {1: "Nothing", 2: "A little", 3: "Some", 4: "A lot"}
+    interest_scale = {1: "Dislike", 2: "Like", 3: "Love"}
     # Need to now rename columns so they aren't so damn long
-    # df.columns = scale.values()  # Setting column names
+    # df.columns = scale.values()
+    # # Setting column names
     column_rename_map = {}
     for column in df.columns:
         if "BEFORE" in column:
@@ -97,7 +101,7 @@ def create_plottable_df(df, topic):
     df_knowledge[knowledge_columns] = df_knowledge[knowledge_columns].apply(
         lambda x: (x / x.sum()) * 100, axis=1
     )  # Convert everything to percentage
-    df_knowledge = df_knowledge.rename(columns=scale)
+    df_knowledge = df_knowledge.rename(columns=learn_scale)
     df_knowledge.columns.name = topic
     df_int = pd.DataFrame(interest)
     interest_column = ["Interest"]
@@ -107,7 +111,7 @@ def create_plottable_df(df, topic):
     )  # Convert everything to percentage
     df_int.index.name = None  # Have to remove this or else it will display on the plots
     df_int = df_int.sort_index(ascending=True)
-    df_int = df_int.rename(index=scale)
+    df_int = df_int.rename(index=interest_scale)
     return df_knowledge, df_int
 
 
@@ -137,10 +141,24 @@ def main():
             kind="bar",
             stacked=True,
             ax=axes[1],
-            color=["#2A788EFF", "#7AD151FF", "#FDE725FF", "#440154FF"],  # ,
+            # color=["#2A788EFF", "#7AD151FF", "#FDE725FF", "#440154FF"],  # ,
+            color=["#fd9c5a", "#ffceaa", "#a0cbeb", "#4099d7"],
             title="Knowledge Gains",
         )
         ax1.legend(loc="lower left", bbox_to_anchor=(1, 0), title="Knowledge Level")
+        # Reversing the legend
+        handles, labels = ax1.get_legend_handles_labels()
+        # Reverse the order of handles and labels
+        handles = handles[::-1]
+        labels = labels[::-1]
+        # Create a new legend with the reversed order
+        ax1.legend(
+            handles,
+            labels,
+            loc="lower left",
+            bbox_to_anchor=(1, 0),
+            title="Knowledge Level",
+        )
         ax1.yaxis.set_major_formatter(mtick.PercentFormatter())
 
         ax2 = plot_interest[i].plot(
@@ -149,11 +167,13 @@ def main():
             legend=False,
             ax=axes[0],
             title="Interest",
+            color="#989898",
         )
         ax2.yaxis.set_major_formatter(mtick.PercentFormatter())
         fig.tight_layout()
-        title = f"plots/{topic}.png"
-        fig.savefig(title, dpi=600, bbox_inches="tight")
+        title = f"plots/{topic}.pdf"
+        # fig.savefig(title, dpi=600, bbox_inches="tight")
+        fig.savefig(title, format="pdf", dpi=600, bbox_inches="tight")
 
 
 if __name__ == "__main__":
