@@ -44,7 +44,7 @@ def get_topic_df_from_csv(csv_file):
     return df_dict
 
 
-def create_plottable_df(df, topic):
+def create_plottable_df(df, topic, use_scale):
     """Takes an initial dataframe and returns a knowledge dataframe and an
     interest dataframe which are ready to be plotted
 
@@ -54,22 +54,27 @@ def create_plottable_df(df, topic):
     Returns:
         pandas_dataframe: Dataframe which corresponds to the student's interest in a particular subject
         pandas_dataframe: Dataframe which corresponds to the student's before and after knowledge of a subject
+        bool: True means it just uses the default scale as defined in Python. False tries to find scale from csv
     """
     # Need to pull out the correct scale
-    learn_scale_match = re.search(r"(?<=lesson\?\n)((.|\n)*)", df.columns[0])
-    if learn_scale_match:
-        learn_scale = {}
-        scale_group = learn_scale_match.group(1)
-        scale_group = scale_group.split("\n")
-        for line in scale_group:
-            line = line.split(" = ")
-            learn_scale[int(line[0])] = line[1]
+    if use_scale:
+        learn_scale = {1: "Nothing", 2: "A little", 3: "Some", 4: "A lot"}
+        interest_scale = {1: "Dislike", 2: "Like", 3: "Love"}
     else:
-        print(
-            "Couldn't extract scale from csv. Assuming 1-4 for learning, 1-3 for interest"
-        )
-    learn_scale = {1: "Nothing", 2: "A little", 3: "Some", 4: "A lot"}
-    interest_scale = {1: "Dislike", 2: "Like", 3: "Love"}
+        learn_scale_match = re.search(r"(?<=lesson\?\n)((.|\n)*)", df.columns[0])
+        if learn_scale_match:
+            learn_scale = {}
+            scale_group = learn_scale_match.group(1)
+            scale_group = scale_group.split("\n")
+            for line in scale_group:
+                line = line.split(" = ")
+                learn_scale[int(line[0])] = line[1]
+        else:
+            print(
+                "Couldn't extract scale from csv. Assuming 1-4 for learning, 1-3 for interest"
+            )
+            learn_scale = {1: "Nothing", 2: "A little", 3: "Some", 4: "A lot"}
+            interest_scale = {1: "Dislike", 2: "Like", 3: "Love"}
     # Need to now rename columns so they aren't so damn long
     # df.columns = scale.values()
     # # Setting column names
@@ -123,7 +128,7 @@ def main():
     plot_interest = []
     for topic, df in df_dict.items():
         print(f"Generating plots for topic {topic}")
-        plot_df, interest = create_plottable_df(df, topic)
+        plot_df, interest = create_plottable_df(df, topic, args.use_scale)
         plot_dfs.append(plot_df)
         plot_interest.append(interest)
 
@@ -187,6 +192,13 @@ if __name__ == "__main__":
         dest="csv_file",
         help="csv file to create plots from",
         required=True,
+    )
+    parser.add_argument(
+        "-s",
+        "--scale",
+        dest="use_scale",
+        help="Add this flag to use the predefined scale in the program vs reading the scale from the csv",
+        action="store_true",
     )
     args = parser.parse_args()
     main()

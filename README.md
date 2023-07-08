@@ -1,6 +1,6 @@
 # go_outdoors_learning
 
-This GitHub repository contains the code needed to quickly create plots measuring a student's before and after knowledge and interest gained from an excel file. The output is a plot for each sheet in the excel file which corresponds to the name in the excel file
+This GitHub repository contains the code needed to quickly create plots measuring a student's before and after knowledge and interest gained from an excel file. The output is a plot for each topic that has a knowledge before and after questions and an interest question.
 
 ## Getting Started
 
@@ -33,11 +33,16 @@ pip install -r requirements.txt
 Make sure you are in the same directory as the script. Then run the script using:
 
 ```shell
-python3 outreach_plot_generator.py -f <path_to_excel_file>
+python3 outreach_plot_generator.py -f <path_to_csv_file>
 ```
 
-Note: You must specify the correct relative or full path to the excel file
+Note: You must specify the correct relative or full path to the csv file and the file MUST be a csv file
+
+You can also run the command with the -s flag which will use the scale (e.g. 1=Nothing, 2=A little, etc.) internal to Python to create the plots instead of trying to find the scale from the csv file. 
+```shell
+python3 outreach_plot_generator.py -f <path_to_csv_file> -s
+```
 
 ## Results
 
-Each plot will be saved inside the plots folder. If you need to adjust the location of the titles of the plots, look at lines 91 and 92 inside the outreach_plot_generator.py file.
+Each plot will be saved inside the plots folder.
